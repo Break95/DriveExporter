@@ -3,6 +3,7 @@
 from __future__ import print_function
 import os.path
 import io
+import sys
 import re
 from odf.opendocument import load
 from googleapiclient.discovery import build
@@ -13,16 +14,25 @@ from google.oauth2.credentials import Credentials
 
 
 mime_odt = {
-    'document': 'application/vnd.oasis.opendocument.text',
-    'spreadsheet': 'application/x-vnd.oasis.opendocument.spreadsheet',
-    'presentation': 'application/vnd.oasis.opendocument.presentation'
+    'D': 'application/vnd.oasis.opendocument.text',
+    'S': 'application/x-vnd.oasis.opendocument.spreadsheet',
+    'P': 'application/vnd.oasis.opendocument.presentation'
 }
 
 
 mime_gdocs = {
-   'document': 'application/vnd.google-apps.document',
-   'spreadsheet': 'application/vnd.google-apps.spreadsheet',
-   'presentation': 'application/vnd.google-apps.presentation'
+   'D': 'application/vnd.google-apps.document',
+   'S': 'application/vnd.google-apps.spreadsheet',
+   'P': 'application/vnd.google-apps.presentation'
+}
+
+query_params = {
+   'origin': '',
+   'mime_in': '',
+   'mime_out': '',
+   'keep_original': True,
+   'destination': '/tmp/',
+   'trashed': False
 }
 
 
@@ -111,7 +121,7 @@ def query_builder(config):
    return
 
 
-def condig_params(params):
+def config_params():
    return
 
 
@@ -119,12 +129,38 @@ def config_human():
    """
    """
    origin = input('Choose an origin: [M]y Dirve, [S]hared with me, [B]oth ')
-   mimes = input('Choose a format: [A]ll, [D]ocument, [S]preadsheet, [P]resentation ')
-   dest = input('Save new files in same folder? [Y/N] ')
+   query_params['origin'] = origin
+
+
+   trashed = input('Include trashed files [Y/N]? (Note: Trashed files only include those deleted by you where you were the owner) ').upper()
+   if trashed == 'Y':
+      query_params['trashed'] = True
+
+
+   mime_in = input('Choose a format: [A]ll, [D]ocument, [S]preadsheet, [P]resentation ').upper()
+   if mime_in == 'A':
+     query_params['mime_in'] = mime_gdocs.values()
+     query_params['mime_out'] = mime_odt.values()
+   else:
+      query_params['mime_in'] = mime_gdocs[mime_in]
+      query_params['mime_out'] = mime_odt[mime_in]
+
+
+   dest = input('Specify a path to store the files (Default is "/tmp/"): ')
+   if os.path.exists(dest):
+      query_params['destination'] = dest
+
+
+   keep = input('Keep original file [(Y)/n]? ').lower()
+   if keep == 'n':
+      query_params['keep_original'] = False
 
 
 if __name__ == '__main__':
+   if len(sys.argv) == 0:
+      config_human()
+   else:
+      config_params()
 
-    drive = authentication()
-    process_files(drive)
-    # human_config()
+   drive = authentication()
+   process_files(drive)
