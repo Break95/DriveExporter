@@ -5,6 +5,8 @@ import os.path
 import io
 import sys
 import re
+import tempfile
+from datetime import datetime
 from odf.opendocument import load
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
@@ -14,9 +16,9 @@ from google.oauth2.credentials import Credentials
 
 
 mime_odt = {
-    'D': 'application/vnd.oasis.opendocument.text',
-    'S': 'application/x-vnd.oasis.opendocument.spreadsheet',
-    'P': 'application/vnd.oasis.opendocument.presentation'
+    'application/vnd.google-apps.document': 'application/vnd.oasis.opendocument.text',
+    'application/vnd.google-apps.spreadsheet': 'application/x-vnd.oasis.opendocument.spreadsheet',
+    'application/vnd.google-apps.presentation': 'application/vnd.oasis.opendocument.presentation'
 }
 
 
@@ -36,6 +38,12 @@ query_params = {
 }
 
 
+origin = {
+   'M': '',
+   'S': '',
+   'B': ''
+}
+
 scopes = 'https://www.googleapis.com/auth/drive'
 
 
@@ -54,6 +62,7 @@ def authentication():
          flow = InstalledAppFlow.from_client_secrets_file(
             'creds/client_secret.json', scopes)
          creds = flow.run_local_server(port=0)
+
       with open('creds/token.json', 'w') as token:
          token.write(creds.to_json())
 
@@ -66,11 +75,12 @@ def process_files(drive):
    while True:
       nextPageToken = None
       results = drive.files().list(
-         q="mimeType = '" + mime_gdocs["document"] + "' and 'me' in owners",
+         q=query_builder(),
          pageToken=nextPageToken,
          pageSize=1000,
-         fields="nextPageToken, files(id, name)").execute()
+         fields="nextPageToken, files(id, name, mimeType)").execute()
 
+      # Export files of the current page.
       export_files(results.get('files', []))
       nextPageToken = results.get('nextPageToken', None)
 
@@ -88,7 +98,7 @@ def export_files(files):
 
          export_req = drive.files().export(
             fileId=f['id'],
-            mimeType=mime_odt["document"])
+            mimeType=mime_odt[f['mimeType']])
 
          fh = io.BytesIO()
          downloader = MediaIoBaseDownload(fh, export_req)
@@ -100,7 +110,7 @@ def export_files(files):
          try:
             while done is False:
                status, done = downloader.next_chunk()
-            load(fh).save('/tmp/' + re.escape(f['name'].replace('/', '_')))
+            load(fh).save(path + re.escape(f['name'].replace('/', '_')))
          except:
                print('\tError exporting ', f['name'])
 
@@ -111,14 +121,20 @@ def delete_files(drive):
    return
 
 
-def query_builder(config):
+def query_builder():
    """
    Buils the query for the Drive API call using the provided parameters.
-
-   Arguments:
-   config -- Dictionary containing the configured parameters for the Drive API call.
    """
-   return
+   query = "("
+   print(query_params['mime_in'])
+   for mime_type in query_params['mime_in']:
+      query = query + "mimeType='" + mime_type + "' or "
+
+   query = query[:len(query) - 3] + ") and "
+
+   query += "'me' in owners"
+   print(query)
+   return query
 
 
 def config_params():
@@ -142,8 +158,8 @@ def config_human():
      query_params['mime_in'] = mime_gdocs.values()
      query_params['mime_out'] = mime_odt.values()
    else:
-      query_params['mime_in'] = mime_gdocs[mime_in]
-      query_params['mime_out'] = mime_odt[mime_in]
+      query_params['mime_in'] = [mime_gdocs[mime_in]]
+      query_params['mime_out'] = mime_odt[mime_gdocs[mime_in]]
 
 
    dest = input('Specify a path to store the files (Default is "/tmp/"): ')
@@ -155,9 +171,15 @@ def config_human():
    if keep == 'n':
       query_params['keep_original'] = False
 
+path = os.getcwd() + '/exports/' + datetime.now().strftime('%c') + '/'
 
 if __name__ == '__main__':
-   if len(sys.argv) == 0:
+   if(not os.path.isdir(os.getcwd() + '/exports/')):
+      os.mkdir(os.getcwd() + '/exports')
+
+   os.mkdir(path)
+
+   if len(sys.argv) == 1:
       config_human()
    else:
       config_params()
