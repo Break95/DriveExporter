@@ -9,6 +9,9 @@ This project uses the Google Drive API v3. This project has been developed for p
 
 [Guide for steps 1 and 2](https://developers.google.com/workspace/guides/create-project)
 
+## Current issues 
+Large files (i.e. documents containing high quality images) can't be downloaded.
+
 ## Usage
 The script supports passing arguments or interactively set the through the command line.
 
