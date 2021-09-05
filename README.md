@@ -10,7 +10,10 @@ This project uses the Google Drive API v3. This project has been developed for p
 [Guide for steps 1 and 2](https://developers.google.com/workspace/guides/create-project)
 
 ## Current issues 
-Large files (i.e. documents containing high quality images) can't be downloaded.
+
+- Large files (i.e. documents containing high quality images) can't be downloaded.
+- When the call token refresh is done for a different call after some time the request is invalid.
+
 
 ## Usage
 The script supports passing arguments or interactively set the through the command line.
