@@ -22,6 +22,22 @@ mime_odt = {
 }
 
 
+mime_outs = {
+    'application/vnd.google-apps.document': ['application/pdf',
+                                             'application/vnd.oasis.opendocument.text'],
+    'application/vnd.google-apps.spreadsheet':['text/csv',
+                                               'application/pdf',
+                                               'application/x-vnd.oasis.opendocument.spreadsheet'],
+    'application/vnd.google-apps.presentation': ['application/pdf',
+                                                 'application/vnd.oasis.opendocument.presentation']
+}
+
+mime_human_outs  = {
+   'application/vnd.google-apps.document': ['Document', '[P]DF, [O]DF'],
+   'application/vnd.google-apps.spreadsheet': ['Spreadsheet', '[C]SV, [P]DF, [O]DF'],
+   'application/vnd.google-apps.presentation' :  ['Presentation', '[P]DF, [O]DF']
+}
+
 mime_gdocs = {
    'D': 'application/vnd.google-apps.document',
    'S': 'application/vnd.google-apps.spreadsheet',
@@ -30,8 +46,8 @@ mime_gdocs = {
 
 query_params = {
    'origin': '',
-   'mime_in': '',
-   'mime_out': '',
+   'mime_in': [],
+   'mime_out': [],
    'keep_original': True,
    'destination': '/tmp/',
    'trashed': False
@@ -39,9 +55,9 @@ query_params = {
 
 
 origin = {
-   'M': '',
-   'S': '',
-   'B': ''
+   'M': '"me" in owners',
+   'S': 'sharedWithMe',
+   'B': 'sharedWithMe and "me" in owners'
 }
 
 scopes = 'https://www.googleapis.com/auth/drive'
@@ -84,12 +100,12 @@ def process_files(drive):
       export_files(results.get('files', []))
       nextPageToken = results.get('nextPageToken', None)
 
-      if not nextPageToken:
+      if not nextPageToken: #If we have finished with all the pages end.
          break
 
    return
 
-
+#TODO:rework export to support multiple files.
 def export_files(files):
    """
    """
@@ -155,14 +171,16 @@ def config_human():
 
    mime_in = input('Choose a format: [A]ll, [D]ocument, [S]preadsheet, [P]resentation ').upper()
    if mime_in == 'A':
-     query_params['mime_in'] = mime_gdocs.values()
-     query_params['mime_out'] = mime_odt.values()
+      query_params['mime_in'] = mime_gdocs.values()
    else:
       query_params['mime_in'] = [mime_gdocs[mime_in]]
-      query_params['mime_out'] = mime_odt[mime_gdocs[mime_in]]
 
+   for mime in query_params['mime_in']:
+      query_params['mime_out'].append(input('Choose an output format for' +
+                                            mime_human_outs[mime][0] + ' ' +
+                                            mime_human_outs[mime][1] + ': '))
 
-   dest = input('Specify a path to store the files (Default is "/tmp/"): ')
+   dest = input('Specify a path to store the files (Default is "./exports"): ')
    if os.path.exists(dest):
       query_params['destination'] = dest
 
