@@ -5,9 +5,7 @@ import os.path
 import io
 import sys
 import re
-import tempfile
 from datetime import datetime
-from odf.opendocument import load
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -22,16 +20,6 @@ mime_odt = {
 }
 
 
-mime_outs = {
-    'application/vnd.google-apps.document': ['application/pdf',
-                                             'application/vnd.oasis.opendocument.text'],
-    'application/vnd.google-apps.spreadsheet':['text/csv',
-                                               'application/pdf',
-                                               'application/x-vnd.oasis.opendocument.spreadsheet'],
-    'application/vnd.google-apps.presentation': ['application/pdf',
-                                                 'application/vnd.oasis.opendocument.presentation']
-}
-
 mime_human_outs  = {
    'application/vnd.google-apps.document': ['Document', '[P]DF, [O]DF'],
    'application/vnd.google-apps.spreadsheet': ['Spreadsheet', '[C]SV, [P]DF, [O]DF'],
@@ -44,7 +32,13 @@ mime_gdocs = {
    'P': 'application/vnd.google-apps.presentation'
 }
 
-query_params = {
+
+mime_export = {
+   'P': 'application/pdf',
+   'C': 'text/csv'
+}
+
+config = {
    'origin': '',
    'mime_in': [],
    'mime_out': [],
@@ -114,26 +108,31 @@ def export_files(files):
 
          export_req = drive.files().export(
             fileId=f['id'],
-            mimeType=mime_odt[f['mimeType']])
+            mimeType=config['mime_out'][(config['mime_in']).index(f['mimeType'])])
 
-         fh = io.BytesIO()
+         file_name = path + f['name'].replace('/','_')
+
+         fh = io.FileIO(file_name, 'wb')
          downloader = MediaIoBaseDownload(fh, export_req)
          done = False
 
          # Wait for download to finish. For some reason if file is too big too export
          # the exception is generated during the download and not during the
          # export call. ??????????
-         try:
-            while done is False:
-               status, done = downloader.next_chunk()
-            load(fh).save(path + re.escape(f['name'].replace('/', '_')))
-         except:
-               print('\tError exporting ', f['name'])
+         #try:
+         while done is False:
+            status, done = downloader.next_chunk()
+            #load(fh).save(path + re.escape(f['name'].replace('/', '_')))
 
+         #except:
+         #      print('\tError exporting ', f['name'])
+
+       
    return
 
 
 def delete_files(drive):
+   print('WARNING! ALL FETCHED FILES. EXPORTED OR NOT (DUE TO ERRORS). WILL BE DOWNLOADED.')
    return
 
 
@@ -142,52 +141,62 @@ def query_builder():
    Buils the query for the Drive API call using the provided parameters.
    """
    query = "("
-   print(query_params['mime_in'])
-   for mime_type in query_params['mime_in']:
+   print(config['mime_in'])
+   for mime_type in config['mime_in']:
       query = query + "mimeType='" + mime_type + "' or "
 
    query = query[:len(query) - 3] + ") and "
 
    query += "'me' in owners"
-   print(query)
    return query
 
 
-def config_params():
+def set_config_params():
    return
 
 
-def config_human():
+def set_config_human():
    """
    """
-   origin = input('Choose an origin: [M]y Dirve, [S]hared with me, [B]oth ')
-   query_params['origin'] = origin
+   origin = ''
+   while origin not in ['M', 'm', 'S', 's', 'B', 'b']:
+      origin = input('Choose an origin [M]y Dirve, [S]hared with me, [B]oth: ')
+   config['origin'] = origin
 
 
    trashed = input('Include trashed files [Y/N]? (Note: Trashed files only include those deleted by you where you were the owner) ').upper()
    if trashed == 'Y':
-      query_params['trashed'] = True
+      config['trashed'] = True
 
 
    mime_in = input('Choose a format: [A]ll, [D]ocument, [S]preadsheet, [P]resentation ').upper()
    if mime_in == 'A':
-      query_params['mime_in'] = mime_gdocs.values()
+      config['mime_in'] = list(mime_gdocs.values())
    else:
-      query_params['mime_in'] = [mime_gdocs[mime_in]]
+      config['mime_in'] = [mime_gdocs[mime_in]]
 
-   for mime in query_params['mime_in']:
-      query_params['mime_out'].append(input('Choose an output format for' +
+   for mime in config['mime_in']:
+      export_type = ''
+
+      while export_type not in ['O', 'o', 'C', 'c', 'P', 'p']:
+         export_type = input('Choose an output format for ' +
                                             mime_human_outs[mime][0] + ' ' +
-                                            mime_human_outs[mime][1] + ': '))
+                                            mime_human_outs[mime][1] + ': ')
+
+      if(export_type in ['O', 'o']):
+         config['mime_out'].append(mime_odt[mime])
+      else:
+         config['mime_out'].append(mime_export[export_type.upper()])
+
 
    dest = input('Specify a path to store the files (Default is "./exports"): ')
    if os.path.exists(dest):
-      query_params['destination'] = dest
+      config['destination'] = dest
 
 
    keep = input('Keep original file [(Y)/n]? ').lower()
    if keep == 'n':
-      query_params['keep_original'] = False
+      config['keep_original'] = False
 
 path = os.getcwd() + '/exports/' + datetime.now().strftime('%c') + '/'
 
@@ -197,10 +206,18 @@ if __name__ == '__main__':
 
    os.mkdir(path)
 
+   # Configuration
    if len(sys.argv) == 1:
-      config_human()
+      set_config_human()
    else:
-      config_params()
+      set_config_params()
 
+   # Auth
    drive = authentication()
+
+   # Export & Download
    process_files(drive)
+
+   # Remove original if requested.
+   if(not config['keep_original']):
+      delete_files()
