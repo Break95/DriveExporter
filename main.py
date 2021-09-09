@@ -99,35 +99,32 @@ def process_files(drive):
 
    return
 
-#TODO:rework export to support multiple files.
 def export_files(files):
    """
    """
    for f in files:
-         print('Exporting:' , f['name'])
+      print('Exporting:' , f['name'])
 
-         export_req = drive.files().export(
-            fileId=f['id'],
-            mimeType=config['mime_out'][(config['mime_in']).index(f['mimeType'])])
+      export_req = drive.files().export(
+         fileId=f['id'],
+         mimeType=config['mime_out'][(config['mime_in']).index(f['mimeType'])])
 
-         file_name = path + f['name'].replace('/','_')
+      file_name = path + f['name'].replace('/','_')
 
-         fh = io.FileIO(file_name, 'wb')
-         downloader = MediaIoBaseDownload(fh, export_req)
-         done = False
+      fh = io.FileIO(file_name, 'wb')
+      downloader = MediaIoBaseDownload(fh, export_req)
+      done = False
 
-         # Wait for download to finish. For some reason if file is too big too export
-         # the exception is generated during the download and not during the
-         # export call. ??????????
-         #try:
+      # Wait for download to finish. For some reason if file is too big too export
+      # the exception is generated during the download and not during the
+      # export call. ??????????
+      try:
          while done is False:
             status, done = downloader.next_chunk()
-            #load(fh).save(path + re.escape(f['name'].replace('/', '_')))
 
-         #except:
-         #      print('\tError exporting ', f['name'])
+      except:
+         print('\tError exporting ', f['name'])
 
-       
    return
 
 
